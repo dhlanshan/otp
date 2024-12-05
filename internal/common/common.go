@@ -14,8 +14,8 @@ import (
 )
 
 type AbstractOtp interface {
-	GenerateCode(counters ...uint64) ([]string, error)
-	Validate(passCode string, counters ...uint64) (bool, error)
+	GenerateCode(counters ...any) ([]string, error)
+	Validate(passCode string, counters ...any) (bool, error)
 	GenerateKey() (*Key, error)
 }
 
@@ -31,8 +31,9 @@ const (
 type PatternEnum string
 
 const (
-	Standard PatternEnum = ""      // 标准模式
-	Steam    PatternEnum = "steam" // Steam模式
+	Standard PatternEnum = ""       // 标准模式
+	Steam    PatternEnum = "steam"  // Steam模式
+	Mobile   PatternEnum = "mobile" // Mobile模式
 )
 
 // AlgorithmEnum 算法
@@ -160,4 +161,35 @@ func CalculateCounters(baseCounter int64, skew uint) []uint64 {
 		counters = append(counters, uint64(baseCounter-int64(i)))
 	}
 	return counters
+}
+
+// ParameterParsing 参数解析
+func ParameterParsing(pattern PatternEnum, counters ...any) (counter uint64, pin string) {
+	switch pattern {
+	case Mobile:
+		cc := counters[0].([]any)
+		for i, c := range cc {
+			if i >= 2 {
+				continue
+			}
+			switch v := c.(type) {
+			case string:
+				if pin == "" {
+					pin = v
+				}
+			case uint64:
+				if counter == 0 {
+					counter = v
+				}
+			}
+		}
+	default:
+		if nested, ok := counters[0].([]any); ok && len(nested) > 0 {
+			if v, ok := nested[0].(uint64); ok && v != 0 {
+				counter = v
+			}
+		}
+	}
+
+	return
 }

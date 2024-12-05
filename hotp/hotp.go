@@ -86,7 +86,7 @@ func (h *HOtp) Init() error {
 	return nil
 }
 
-func (h *HOtp) GenerateCodeForCounter(counter uint64) (passCode string, err error) {
+func (h *HOtp) GenerateCodeForCounter(counter uint64, pins ...string) (passCode string, err error) {
 	if h.Digits == 0 {
 		return "", errors.New("密码位数错误")
 	}
@@ -94,10 +94,19 @@ func (h *HOtp) GenerateCodeForCounter(counter uint64) (passCode string, err erro
 	binary.BigEndian.PutUint64(buf, counter)
 
 	mac := hmac.New(h.Algorithm.Hash, h.Secret)
+	if h.Pattern == common.Mobile && len(pins) > 0 {
+		if len(pins) == 0 {
+			return "", errors.New("mobile模式下, pin不能为空")
+		}
+		mac.Write([]byte(pins[0]))
+	}
 	mac.Write(buf)
 	sum := mac.Sum(nil)
 
 	offset := sum[len(sum)-1] & 0xf
+	if int(offset)+3 >= len(sum) {
+		return "", fmt.Errorf("invalid offset, hashSum length is too short")
+	}
 	value := int64(((int(sum[offset]) & 0x7f) << 24) |
 		((int(sum[offset+1] & 0xff)) << 16) |
 		((int(sum[offset+2] & 0xff)) << 8) |
@@ -115,18 +124,25 @@ func (h *HOtp) GenerateCodeForCounter(counter uint64) (passCode string, err erro
 			passCode += string(steamChars[value%sl])
 			value /= sl
 		}
+	case common.Mobile:
+		charSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		sl := int64(len(charSet))
+		for i := 0; i < dl; i++ {
+			passCode = string(charSet[value%sl]) + passCode
+			value /= sl
+		}
 	}
 
 	return
 }
 
-func (h *HOtp) ValidateForCounter(passCode string, counter uint64) (bool, error) {
+func (h *HOtp) ValidateForCounter(passCode string, counter uint64, pin string) (bool, error) {
 	passCode = strings.TrimSpace(passCode)
 	if len(passCode) != h.Digits.Length() {
 		return false, errors.New("密码位数错误")
 	}
 
-	newPassCode, err := h.GenerateCodeForCounter(counter)
+	newPassCode, err := h.GenerateCodeForCounter(counter, pin)
 	if err != nil {
 		return false, err
 	}
@@ -139,12 +155,20 @@ func (h *HOtp) ValidateForCounter(passCode string, counter uint64) (bool, error)
 }
 
 // GenerateCode 生成动态密码
-func (h *HOtp) GenerateCode(counters ...uint64) ([]string, error) {
+func (h *HOtp) GenerateCode(counters ...any) ([]string, error) {
 	if len(counters) == 0 {
 		return nil, errors.New("counters is empty")
 	}
+	// 根据类型拆分counters
+	counter, pin := common.ParameterParsing(h.Pattern, counters)
+	if counter == 0 {
+		return nil, errors.New("缺少counter参数")
+	}
+	if h.Pattern == common.Mobile && pin == "" {
+		return nil, errors.New("缺少pin参数")
+	}
 
-	passCode, err := h.GenerateCodeForCounter(counters[0])
+	passCode, err := h.GenerateCodeForCounter(counter, pin)
 	if err != nil {
 		return nil, err
 	}
@@ -153,12 +177,21 @@ func (h *HOtp) GenerateCode(counters ...uint64) ([]string, error) {
 }
 
 // Validate 校验动态密码
-func (h *HOtp) Validate(passCode string, counters ...uint64) (bool, error) {
+func (h *HOtp) Validate(passCode string, counters ...any) (bool, error) {
 	if len(counters) == 0 {
 		return false, errors.New("counters is empty")
 	}
 
-	return h.ValidateForCounter(passCode, counters[0])
+	// 根据类型拆分counters
+	counter, pin := common.ParameterParsing(h.Pattern, counters)
+	if counter == 0 {
+		return false, errors.New("缺少counter参数")
+	}
+	if h.Pattern == common.Mobile && pin == "" {
+		return false, errors.New("缺少pin参数")
+	}
+
+	return h.ValidateForCounter(passCode, counter, pin)
 }
 
 // GenerateKey 生成新key

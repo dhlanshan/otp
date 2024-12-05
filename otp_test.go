@@ -9,7 +9,6 @@ func TestGenerateKeyByHOtp(t *testing.T) {
 	cmd := &CreateOtpCmd{OtpType: HOTP, Secret: "dhlanshan"}
 	key, err := GenerateKey(cmd)
 	fmt.Println(key, err)
-	// otpauth://hotp/%E7%81%AF%E7%81%AB%E9%98%91%E7%8F%8A:bee?algorithm=SHA1&digits=6&issuer=%E7%81%AF%E7%81%AB%E9%98%91%E7%8F%8A&secret=MRUGYYLOONUGC3Q
 }
 
 func TestGenerateCodeByHOtp(t *testing.T) {
@@ -26,20 +25,20 @@ func TestValidateByHOtp(t *testing.T) {
 }
 
 func TestGenerateKeyByTOtp(t *testing.T) {
-	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Digits: 8}
+	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan"}
 	key, err := GenerateKey(cmd)
 	fmt.Println(key, err)
 }
 
 func TestGenerateCodeByTOtp(t *testing.T) {
-	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Digits: 8}
+	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan"}
 	code, err := GenerateCode(cmd)
 	fmt.Println(code, err)
 }
 
 func TestValidateByTOtp(t *testing.T) {
-	passCode := "45609279"
-	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Digits: 8, Skew: 1}
+	passCode := "303087"
+	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Skew: 1}
 	res := Validate(cmd, passCode)
 	fmt.Println(res)
 }
@@ -57,8 +56,27 @@ func TestGenerateCodeBySteam(t *testing.T) {
 }
 
 func TestValidateBySteam(t *testing.T) {
+	passCode := "V6NRM"
+	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: Steam, Skew: 1}
+	res := Validate(cmd, passCode)
+	fmt.Println(res)
+}
+
+func TestGenerateKeyByMobile(t *testing.T) {
+	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Pattern: Mobile}
+	key, err := GenerateKey(cmd)
+	fmt.Println(key, err)
+}
+
+func TestGenerateCodeByMobile(t *testing.T) {
+	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Pattern: Mobile, Period: 1}
+	code, err := GenerateCode(cmd, "6688")
+	fmt.Println(code, err)
+}
+
+func TestValidateByMobile(t *testing.T) {
 	passCode := "GRTG2"
-	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: Steam}
+	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: Mobile}
 	res := Validate(cmd, passCode)
 	fmt.Println(res)
 }

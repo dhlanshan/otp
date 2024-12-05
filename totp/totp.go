@@ -97,16 +97,22 @@ func (t *TOtp) Init() error {
 }
 
 // GenerateCode 生成动态密码
-func (t *TOtp) GenerateCode(counters ...uint64) ([]string, error) {
+func (t *TOtp) GenerateCode(counters ...any) ([]string, error) {
 	nowTime := time.Now().UTC()
 	counter := int64(math.Floor(float64(nowTime.Unix()) / float64(t.Period)))
 
-	counters = common.CalculateCounters(counter, t.Skew)
+	// 根据类型拆分counters
+	_, pin := common.ParameterParsing(t.Pattern, counters)
+	if t.Pattern == common.Mobile && pin == "" {
+		return nil, errors.New("缺少pin参数")
+	}
+
+	newCounters := common.CalculateCounters(counter, t.Skew)
 	hOpt := hotp.HOtp{Digits: t.Digits, Algorithm: t.Algorithm, Secret: t.Secret, Pattern: t.Pattern, Rand: t.Rand}
 
-	passCodes := make([]string, 0, len(counters))
-	for _, c := range counters {
-		passCode, err := hOpt.GenerateCodeForCounter(c)
+	passCodes := make([]string, 0, len(newCounters))
+	for _, c := range newCounters {
+		passCode, err := hOpt.GenerateCodeForCounter(c, pin)
 		if err != nil {
 			return nil, fmt.Errorf("生成动态码失败: %w", err)
 		}
@@ -120,21 +126,29 @@ func (t *TOtp) getHost() string {
 	switch t.Pattern {
 	case common.Steam:
 		host = "steam"
+	case common.Mobile:
+		host = "motp"
 	}
 
 	return host
 }
 
 // Validate 校验动态密码
-func (t *TOtp) Validate(passCode string, counters ...uint64) (bool, error) {
+func (t *TOtp) Validate(passCode string, counters ...any) (bool, error) {
 	nowTime := time.Now().UTC()
 	counter := int64(math.Floor(float64(nowTime.Unix()) / float64(t.Period)))
 
-	counters = common.CalculateCounters(counter, t.Skew)
+	// 根据类型拆分counters
+	_, pin := common.ParameterParsing(t.Pattern, counters)
+	if t.Pattern == common.Mobile && pin == "" {
+		return false, errors.New("缺少pin参数")
+	}
+
+	newCounters := common.CalculateCounters(counter, t.Skew)
 	hObj := hotp.HOtp{Digits: t.Digits, Algorithm: t.Algorithm, Secret: t.Secret, Pattern: t.Pattern}
 
-	for _, c := range counters {
-		isValid, err := hObj.ValidateForCounter(passCode, c)
+	for _, c := range newCounters {
+		isValid, err := hObj.ValidateForCounter(passCode, c, pin)
 		if err != nil {
 			return false, fmt.Errorf("校验失败: %w", err)
 		}

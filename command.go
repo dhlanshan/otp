@@ -11,8 +11,9 @@ const (
 type PatternEnum string
 
 const (
-	Standard PatternEnum = ""      // 标准模式
-	Steam    PatternEnum = "steam" // Steam模式
+	Standard PatternEnum = ""       // 标准模式
+	Steam    PatternEnum = "steam"  // Steam模式
+	Mobile   PatternEnum = "mobile" // Mobile模式
 )
 
 // AlgorithmEnum 算法
@@ -38,4 +39,5 @@ type CreateOtpCmd struct {
 	Digits      int           // 密码位数
 	Algorithm   AlgorithmEnum // 用于HMAC的算法。默认为SHA1
 	Pattern     PatternEnum   // 模式
+	Pin         string        // 仅限 mobile 模式有效
 }
