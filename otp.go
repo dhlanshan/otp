@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/dhlanshan/otp/hotp"
+	"github.com/dhlanshan/otp/internal/abstract"
 	"github.com/dhlanshan/otp/internal/command"
-	"github.com/dhlanshan/otp/internal/common"
 	"github.com/dhlanshan/otp/totp"
 	"strings"
 )
 
-func NewOtpInstance(cmd *CreateOtpCmd) (common.AbstractOtp, error) {
+func NewOtpInstance(cmd *CreateOtpCmd) (abstract.Otp, error) {
 	var newCmd *command.CreateOtpCmd
 	n, _ := json.Marshal(cmd)
 	_ = json.Unmarshal(n, &newCmd)
@@ -20,38 +20,35 @@ func NewOtpInstance(cmd *CreateOtpCmd) (common.AbstractOtp, error) {
 	case TOTP:
 		return totp.NewTOtp(newCmd)
 	default:
-		return nil, errors.New("不支持的OTP类型")
+		return nil, errors.New("unsupported OTP type")
 	}
 }
 
-// GenerateKey 生成令牌器
+// GenerateKey generate token KEY address
 func GenerateKey(cmd *CreateOtpCmd) (string, error) {
 	obj, err := NewOtpInstance(cmd)
 	if err != nil {
 		return "", err
 	}
-	// 生成秘钥
-	k, err := obj.GenerateKey()
-	if err != nil {
-		return "", err
-	}
 
-	return k.Url.String(), nil
+	k, err := obj.GenerateKey()
+
+	return k, err
 }
 
-// GenerateCode 生成动态密码
+// GenerateCode generate dynamic password
 func GenerateCode(cmd *CreateOtpCmd, counters ...any) (string, error) {
 	obj, err := NewOtpInstance(cmd)
 	if err != nil {
 		return "", err
 	}
-	// 生成秘钥
+
 	code, err := obj.GenerateCode(counters...)
 
 	return strings.Join(code, ""), err
 }
 
-// Validate 校验动态码
+// Validate verify dynamic code
 func Validate(cmd *CreateOtpCmd, passCode string, counters ...any) bool {
 	obj, err := NewOtpInstance(cmd)
 	if err != nil {

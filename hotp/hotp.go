@@ -9,25 +9,27 @@ import (
 	"fmt"
 	"github.com/dhlanshan/otp/internal/command"
 	"github.com/dhlanshan/otp/internal/common"
+	"github.com/dhlanshan/otp/internal/enum"
+	"github.com/dhlanshan/otp/internal/util"
 	"io"
-	"math"
 	"net/url"
 	"strings"
 )
 
 type HOtp struct {
-	Issuer      string               // 发证机构/公司的名称
-	AccountName string               // 用户账户名称(如电子邮件地址)
-	SecretSize  uint                 // 生成的秘钥的大小。默认为20字节。当秘钥需要随机生成时使用该字段
-	Secret      []byte               // 原始秘钥。默认为随机生成的SecretSize秘钥
-	EncSecret   string               // 编码后的秘钥
-	Digits      common.DigitEnum     // 密码位数
-	Algorithm   common.AlgorithmEnum // 用于HMAC的算法。默认为SHA1
-	Pattern     common.PatternEnum   // 模式
-	Rand        io.Reader            // 用于生成TOTP密钥的读卡器
+	Issuer      string             // The name of the issuer/company
+	AccountName string             // The user's account name (e.g., email address)
+	SecretSize  uint               // The size of the secret key to generate. Defaults to 20 bytes. Used when the key needs to be randomly generated
+	Secret      []byte             // The raw secret key. Defaults to a randomly generated key of size SecretSize
+	EncSecret   string             // The encoded secret key
+	Digits      enum.DigitEnum     // The number of digits in the OTP
+	Algorithm   enum.AlgorithmEnum // The algorithm used for HMAC. Defaults to SHA1
+	Pattern     enum.PatternEnum   // The OTP generation pattern
+	Rand        io.Reader          // The reader used for generating TOTP keys
+	Host        string             // The host of the key
 }
 
-// NewHOtp 创建一个新的 HOtp 实例
+// NewHOtp initializes and returns a new HOtp instance based on the provided CreateOtpCmd configuration.
 func NewHOtp(cmd *command.CreateOtpCmd) (*HOtp, error) {
 	hObj := &HOtp{
 		Issuer:      cmd.Issuer,
@@ -38,11 +40,14 @@ func NewHOtp(cmd *command.CreateOtpCmd) (*HOtp, error) {
 		Digits:      cmd.Digits,
 		Algorithm:   cmd.Algorithm,
 		Pattern:     cmd.Pattern,
-		Rand:        rand.Reader, // 默认为安全的随机数生成器
+		Rand:        rand.Reader,
+		Host:        cmd.Host,
 	}
 	if err := hObj.Init(); err != nil {
-		return nil, errors.New(fmt.Sprintf("HOTP 初始化失败: %s", err.Error()))
+		return nil, errors.New(fmt.Sprintf("HOTP init failed: %s", err.Error()))
 	}
+	// Load default pattern
+	common.SetDefaultPattern()
 
 	return hObj, nil
 }
@@ -58,15 +63,15 @@ func (h *HOtp) Init() error {
 		h.SecretSize = common.DefaultSecretSize
 	}
 	if h.Digits == 0 {
-		h.Digits = common.DigitSix
+		h.Digits = enum.DigitSix
 	}
 	if h.Rand == nil {
 		h.Rand = rand.Reader
 	}
 	if h.EncSecret != "" {
-		secret, err := common.DecodeBase32Secret(h.EncSecret)
+		secret, err := util.DecodeBase32Secret(h.EncSecret)
 		if err != nil {
-			return errors.New("秘钥解码失败")
+			return errors.New("EncSecret key decoding failed")
 		}
 		h.Secret = secret
 		h.SecretSize = uint(len(secret))
@@ -74,7 +79,7 @@ func (h *HOtp) Init() error {
 	if len(h.Secret) == 0 {
 		h.Secret = make([]byte, h.SecretSize)
 		if _, err := h.Rand.Read(h.Secret); err != nil {
-			return errors.New("初始化秘钥错误。")
+			return errors.New("init Secret failed")
 		}
 	} else {
 		h.SecretSize = uint(len(h.Secret))
@@ -82,24 +87,33 @@ func (h *HOtp) Init() error {
 	if h.EncSecret == "" {
 		h.EncSecret = common.B32NoPadding.EncodeToString(h.Secret)
 	}
+	if h.Pattern == "" {
+		h.Pattern = enum.Standard
+	}
+	if h.Pattern == enum.Standard {
+		h.Host = "hotp"
+	}
 
 	return nil
 }
 
 func (h *HOtp) GenerateCodeForCounter(counter uint64, pins ...string) (passCode string, err error) {
 	if h.Digits == 0 {
-		return "", errors.New("密码位数错误")
+		return "", errors.New("invalid password digits")
 	}
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, counter)
 
-	mac := hmac.New(h.Algorithm.Hash, h.Secret)
-	if h.Pattern == common.Mobile && len(pins) > 0 {
-		if len(pins) == 0 {
-			return "", errors.New("mobile模式下, pin不能为空")
-		}
-		mac.Write([]byte(pins[0]))
+	p, ok := common.PatternMap[h.Pattern]
+	if !ok {
+		return "", errors.New("invalid pattern")
 	}
+	buf, err = p.CounterFun(buf, pins...)
+	if err != nil {
+		return "", err
+	}
+
+	mac := hmac.New(h.Algorithm.Hash, h.Secret)
 	mac.Write(buf)
 	sum := mac.Sum(nil)
 
@@ -113,25 +127,7 @@ func (h *HOtp) GenerateCodeForCounter(counter uint64, pins ...string) (passCode 
 		(int(sum[offset+3]) & 0xff))
 
 	dl := h.Digits.Length()
-	switch h.Pattern {
-	case common.Standard:
-		mod := value % int64(math.Pow10(dl))
-		passCode = h.Digits.Format(int32(mod))
-	case common.Steam:
-		steamChars := "23456789BCDFGHJKMNPQRTVWXY"
-		sl := int64(len(steamChars))
-		for i := 0; i < dl; i++ {
-			passCode += string(steamChars[value%sl])
-			value /= sl
-		}
-	case common.Mobile:
-		charSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		sl := int64(len(charSet))
-		for i := 0; i < dl; i++ {
-			passCode = string(charSet[value%sl]) + passCode
-			value /= sl
-		}
-	}
+	passCode = p.CalculationFun(value, dl, h.Digits)
 
 	return
 }
@@ -139,7 +135,7 @@ func (h *HOtp) GenerateCodeForCounter(counter uint64, pins ...string) (passCode 
 func (h *HOtp) ValidateForCounter(passCode string, counter uint64, pin string) (bool, error) {
 	passCode = strings.TrimSpace(passCode)
 	if len(passCode) != h.Digits.Length() {
-		return false, errors.New("密码位数错误")
+		return false, errors.New("invalid password digits")
 	}
 
 	newPassCode, err := h.GenerateCodeForCounter(counter, pin)
@@ -154,18 +150,18 @@ func (h *HOtp) ValidateForCounter(passCode string, counter uint64, pin string) (
 	return true, nil
 }
 
-// GenerateCode 生成动态密码
+// GenerateCode generate dynamic password
 func (h *HOtp) GenerateCode(counters ...any) ([]string, error) {
 	if len(counters) == 0 {
 		return nil, errors.New("counters is empty")
 	}
-	// 根据类型拆分counters
-	counter, pin := common.ParameterParsing(h.Pattern, counters)
+
+	counter, pin := util.ParameterParsing(h.Pattern, counters)
 	if counter == 0 {
-		return nil, errors.New("缺少counter参数")
+		return nil, errors.New("missing counter parameter")
 	}
-	if h.Pattern == common.Mobile && pin == "" {
-		return nil, errors.New("缺少pin参数")
+	if h.Pattern == enum.Mobile && pin == "" {
+		return nil, errors.New("missing pin parameter")
 	}
 
 	passCode, err := h.GenerateCodeForCounter(counter, pin)
@@ -176,28 +172,27 @@ func (h *HOtp) GenerateCode(counters ...any) ([]string, error) {
 	return []string{passCode}, nil
 }
 
-// Validate 校验动态密码
+// Validate verify dynamic password
 func (h *HOtp) Validate(passCode string, counters ...any) (bool, error) {
 	if len(counters) == 0 {
 		return false, errors.New("counters is empty")
 	}
 
-	// 根据类型拆分counters
-	counter, pin := common.ParameterParsing(h.Pattern, counters)
+	counter, pin := util.ParameterParsing(h.Pattern, counters)
 	if counter == 0 {
-		return false, errors.New("缺少counter参数")
+		return false, errors.New("missing counter parameter")
 	}
-	if h.Pattern == common.Mobile && pin == "" {
-		return false, errors.New("缺少pin参数")
+	if h.Pattern == enum.Mobile && pin == "" {
+		return false, errors.New("missing pin parameter")
 	}
 
 	return h.ValidateForCounter(passCode, counter, pin)
 }
 
-// GenerateKey 生成新key
-func (h *HOtp) GenerateKey() (*common.Key, error) {
+// GenerateKey new key
+func (h *HOtp) GenerateKey() (string, error) {
 	if h.Issuer == "" || h.AccountName == "" {
-		return nil, errors.New("缺少必要的账户信息")
+		return "", errors.New("lacking necessary account information")
 	}
 
 	val := url.Values{}
@@ -206,7 +201,7 @@ func (h *HOtp) GenerateKey() (*common.Key, error) {
 	val.Set("algorithm", h.Algorithm.String())
 	val.Set("digits", h.Digits.String())
 
-	u := url.URL{Scheme: "otpauth", Host: "hotp", Path: "/" + h.Issuer + ":" + h.AccountName, RawQuery: common.EncodeQuery(val)}
+	u := url.URL{Scheme: "otpauth", Host: h.Host, Path: "/" + h.Issuer + ":" + h.AccountName, RawQuery: util.EncodeQuery(val)}
 
-	return common.NewKeyFromURL(u.String())
+	return util.NewKeyFromUrl(u.String())
 }

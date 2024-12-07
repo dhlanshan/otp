@@ -1,7 +1,10 @@
 package otp
 
 import (
+	"errors"
 	"fmt"
+	"github.com/dhlanshan/otp/internal/common"
+	"github.com/dhlanshan/otp/internal/enum"
 	"testing"
 )
 
@@ -37,7 +40,7 @@ func TestGenerateCodeByTOtp(t *testing.T) {
 }
 
 func TestValidateByTOtp(t *testing.T) {
-	passCode := "303087"
+	passCode := "929306"
 	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Skew: 1}
 	res := Validate(cmd, passCode)
 	fmt.Println(res)
@@ -56,7 +59,7 @@ func TestGenerateCodeBySteam(t *testing.T) {
 }
 
 func TestValidateBySteam(t *testing.T) {
-	passCode := "V6NRM"
+	passCode := "H5TYY"
 	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: Steam, Skew: 1}
 	res := Validate(cmd, passCode)
 	fmt.Println(res)
@@ -68,15 +71,41 @@ func TestGenerateKeyByMobile(t *testing.T) {
 	fmt.Println(key, err)
 }
 
+// MobilePattern Mobile模式
+type MobilePattern struct{}
+
+func (mp *MobilePattern) CounterFun(buf []byte, str ...string) ([]byte, error) {
+	if len(str) == 0 {
+		return nil, errors.New("mobile模式下, pin不能为空")
+	}
+	buf = append([]byte(str[0]), buf...)
+
+	return buf, nil
+}
+
+func (mp *MobilePattern) CalculationFun(value int64, dl int, digits enum.DigitEnum) string {
+	result := ""
+	charSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	sl := int64(len(charSet))
+	for i := 0; i < dl; i++ {
+		result = string(charSet[value%sl]) + result
+		value /= sl
+	}
+
+	return result
+}
+
 func TestGenerateCodeByMobile(t *testing.T) {
-	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Pattern: Mobile, Period: 1}
+	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Pattern: Mobile, Period: 30}
+	common.PatternMap["mobile"] = &MobilePattern{}
 	code, err := GenerateCode(cmd, "6688")
 	fmt.Println(code, err)
 }
 
 func TestValidateByMobile(t *testing.T) {
-	passCode := "GRTG2"
-	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: Mobile}
-	res := Validate(cmd, passCode)
+	passCode := "cpjoNO"
+	common.PatternMap["mobile"] = &MobilePattern{}
+	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: Mobile, Period: 30}
+	res := Validate(cmd, passCode, "6688")
 	fmt.Println(res)
 }

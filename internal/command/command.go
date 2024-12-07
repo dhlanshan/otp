@@ -1,21 +1,21 @@
 package command
 
 import (
-	"github.com/dhlanshan/otp/internal/common"
+	"github.com/dhlanshan/otp/internal/enum"
 )
 
-// CreateOtpCmd OTP参数
+// CreateOtpCmd OTP command
 type CreateOtpCmd struct {
-	Issuer      string               // 发证机构/公司的名称
-	AccountName string               // 用户帐户名称（如电子邮件地址
-	OtpType     string               // otp类型
-	Period      uint                 // TOTP哈希有效的秒数。默认为30秒
-	Skew        uint                 // 允许的当前时间之前或之后的时段。值为1时，最多允许指定时间两侧的Period。默认为0允许的倾斜。大于1的值可能是粗略的
-	SecretSize  uint                 // 生成的秘钥的大小。默认为20字节。当秘钥需要随机生成时使用该字段
-	Secret      string               // 存储的秘钥。默认为随机生成的SecretSize秘钥
-	EncSecret   string               // 编码后的秘钥
-	Digits      common.DigitEnum     // 密码位数
-	Algorithm   common.AlgorithmEnum // 用于HMAC的算法。默认为SHA1
-	Pattern     common.PatternEnum   // 模式
-	Pin         string               // 仅限 mobile 模式有效
+	Issuer      string             // The name of the issuer/company
+	AccountName string             // The user's account name (e.g., email address)
+	OtpType     string             // otp type
+	Period      uint               // TOTP hash validity duration. Default is 30 seconds.
+	Skew        uint               // The allowed time period before or after the current time. When the value is 1, a maximum of two periods on either side of the specified time are allowed. Default is 0
+	SecretSize  uint               // The size of the secret key to generate. Defaults to 20 bytes. Used when the key needs to be randomly generated
+	Secret      string             // The raw secret key. Defaults to a randomly generated key of size SecretSize
+	EncSecret   string             // The encoded secret key
+	Digits      enum.DigitEnum     // The number of digits in the OTP
+	Algorithm   enum.AlgorithmEnum // The algorithm used for HMAC. Defaults to SHA1
+	Pattern     enum.PatternEnum   // The OTP generation pattern
+	Host        string             // The host of the key
 }
