@@ -1,7 +1,7 @@
 package command
 
 import (
-	"github.com/dhlanshan/otp/internal/enum"
+	"github.com/dhlanshan/otp/enum"
 )
 
 // CreateOtpCmd OTP command

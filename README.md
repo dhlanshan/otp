@@ -25,9 +25,137 @@
 
 ---
 
-## 安装
+## 示例
 
-确保您的 Go 版本为 **1.23.3** 或更高版本。运行以下命令安装：
+- 生成一个类型为hotp,时间步长为30秒的6位的令牌地址
+```go
+package main
 
-```bash
-go get -u github.com/your-repo/otp
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.HOTP}
+	key, err := otp.GenerateKey(cmd)
+	fmt.Println(key, err)
+	// 输出: otpauth://hotp/%E4%B8%8A%E5%A4%A9%E6%8F%BD%E6%9C%88:bee?algorithm=SHA1&digits=6&issuer=%E4%B8%8A%E5%A4%A9%E6%8F%BD%E6%9C%88&secret=E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM <nil>
+}
+```
+
+- HOTP类型 通过指定的秘钥来生成动态密码
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.HOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM"}
+	code, err := otp.GenerateCode(cmd, uint64(1))
+	fmt.Println(code, err)
+	// 输出:956878 <nil>
+}
+```
+- HOTP类型 校验密码
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.HOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM"}
+	code := otp.Validate(cmd, "956878", uint64(1))
+	fmt.Println(code)
+	// 输出:true
+}
+```
+- TOTP 生成令牌地址
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM"}
+	key, err := otp.GenerateKey(cmd)
+	fmt.Println(key, err)
+	// 输出:otpauth://totp/%25E4%25B8%258A%25E5%25A4%25A9%25E6%258F%25BD%25E6%259C%2588:bee?algorithm=SHA1&digits=6&issuer=%E4%B8%8A%E5%A4%A9%E6%8F%BD%E6%9C%88&period=30&secret=E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM
+}
+```
+
+- TOTP 生成密码
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM"}
+	code, err := otp.GenerateCode(cmd)
+	fmt.Println(code, err)
+}
+```
+
+- TOTP 校验
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM"}
+	res := otp.Validate(cmd, "380496")
+	fmt.Println(res)
+}
+```
+
+- 校验,允许当前时间前后的时间段(上一个密码和将要生成的密码以及当前密码都可验证通过)
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM", Skew: 1}
+	res := otp.Validate(cmd, "109509")
+	fmt.Println(res)
+}
+```
+
+- Steam 模式
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/dhlanshan/otp"
+)
+
+func main() {
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM", Pattern: otp.Steam}
+	key, err := otp.GenerateKey(cmd)
+	fmt.Println(key, err)
+}
+
+```
+
+- 自定义模式 (自定义模式需实现)

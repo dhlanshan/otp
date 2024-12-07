@@ -2,8 +2,8 @@ package common
 
 import (
 	"encoding/base32"
+	"github.com/dhlanshan/otp/enum"
 	"github.com/dhlanshan/otp/internal/abstract"
-	"github.com/dhlanshan/otp/internal/enum"
 	"github.com/dhlanshan/otp/internal/realize"
 )
 

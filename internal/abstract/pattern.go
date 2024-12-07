@@ -1,6 +1,8 @@
 package abstract
 
-import "github.com/dhlanshan/otp/internal/enum"
+import (
+	"github.com/dhlanshan/otp/enum"
+)
 
 type Pattern interface {
 	CounterFun(buf []byte, str ...string) ([]byte, error)

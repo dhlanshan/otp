@@ -2,7 +2,7 @@ package realize
 
 import (
 	"errors"
-	"github.com/dhlanshan/otp/internal/enum"
+	"github.com/dhlanshan/otp/enum"
 	"math"
 )
 

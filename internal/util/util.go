@@ -2,7 +2,7 @@ package util
 
 import (
 	"encoding/base32"
-	"github.com/dhlanshan/otp/internal/enum"
+	"github.com/dhlanshan/otp/enum"
 	"net/url"
 	"sort"
 	"strings"
