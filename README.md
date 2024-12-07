@@ -161,6 +161,44 @@ func main() {
 
 - 自定义模式 (自定义模式需实现CounterFun和CalculationFun方法)
 ```go
+package main
 
+import (
+	"errors"
+	"fmt"
+	"github.com/dhlanshan/otp"
+	"github.com/dhlanshan/otp/enum"
+)
 
+// BKPattern 自定义模式
+type BKPattern struct{}
+
+func (mp *BKPattern) CounterFun(buf []byte, str ...string) ([]byte, error) {
+	if len(str) == 0 {
+		return nil, errors.New("str不能为空")
+	}
+	buf = append([]byte(str[0]), buf...)
+
+	return buf, nil
+}
+
+func (mp *BKPattern) CalculationFun(value int64, dl int, digits enum.DigitEnum) string {
+	result := ""
+	charSet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	sl := int64(len(charSet))
+	for i := 0; i < dl; i++ {
+		result = string(charSet[value%sl]) + result
+		value /= sl
+	}
+
+	return result
+}
+
+func main() {
+	otp.AddOtpPattern([]otp.Aop{{PatternName: "motp", Pattern: &BKPattern{}}})
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM", Pattern: "motp", Host: "motp"}
+	key, err := otp.GenerateKey(cmd)
+
+	fmt.Println(key, err)
+}
 ```

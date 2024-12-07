@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dhlanshan/otp/enum"
-	"github.com/dhlanshan/otp/internal/common"
 	"testing"
 )
 
@@ -97,14 +96,14 @@ func (mp *MobilePattern) CalculationFun(value int64, dl int, digits enum.DigitEn
 
 func TestGenerateCodeByMobile(t *testing.T) {
 	cmd := &CreateOtpCmd{OtpType: TOTP, Secret: "dhlanshan", Pattern: enum.Mobile, Period: 30}
-	common.PatternMap["mobile"] = &MobilePattern{}
+	AddOtpPattern([]Aop{{PatternName: "mobile", Pattern: &MobilePattern{}}})
 	code, err := GenerateCode(cmd, "6688")
 	fmt.Println(code, err)
 }
 
 func TestValidateByMobile(t *testing.T) {
-	passCode := "bAiuCX"
-	common.PatternMap["mobile"] = &MobilePattern{}
+	passCode := "aIkg5C"
+	AddOtpPattern([]Aop{{PatternName: "mobile", Pattern: &MobilePattern{}}})
 	cmd := &CreateOtpCmd{OtpType: TOTP, EncSecret: "MRUGYYLOONUGC3Q", Pattern: enum.Mobile, Period: 30}
 	res := Validate(cmd, passCode, "6688")
 	fmt.Println(res)
