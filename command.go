@@ -26,7 +26,7 @@ type CreateOtpCmd struct {
 	Digits      int                // 密码位数
 	Algorithm   enum.AlgorithmEnum // 用于HMAC的算法。默认为SHA1
 	Pattern     enum.PatternEnum   // 模式
-	Pin         string             // 仅限 mobile 模式有效
+	Host        string             // host
 }
 
 type Aop struct {

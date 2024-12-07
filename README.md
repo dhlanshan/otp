@@ -148,14 +148,19 @@ package main
 import (
 	"fmt"
 	"github.com/dhlanshan/otp"
+	"github.com/dhlanshan/otp/enum"
 )
 
 func main() {
-	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM", Pattern: otp.Steam}
+	cmd := &otp.CreateOtpCmd{Issuer: "上天揽月", AccountName: "bee", OtpType: otp.TOTP, EncSecret: "E6GI4IVJTVFFIDA67SDJ5KC647AZHQTM", Pattern: enum.Steam}
 	key, err := otp.GenerateKey(cmd)
 	fmt.Println(key, err)
 }
 
 ```
 
-- 自定义模式 (自定义模式需实现)
+- 自定义模式 (自定义模式需实现CounterFun和CalculationFun方法)
+```go
+
+
+```
