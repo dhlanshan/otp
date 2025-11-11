@@ -44,7 +44,7 @@ func NewHOtp(cmd *command.CreateOtpCmd) (*HOtp, error) {
 		Host:        cmd.Host,
 	}
 	if err := hObj.Init(); err != nil {
-		return nil, errors.New(fmt.Sprintf("HOTP init failed: %s", err.Error()))
+		return nil, fmt.Errorf("HOTP init failed: %w", err)
 	}
 	// Load default pattern
 	common.SetDefaultPattern()
@@ -71,15 +71,15 @@ func (h *HOtp) Init() error {
 	if h.EncSecret != "" {
 		secret, err := util.DecodeBase32Secret(h.EncSecret)
 		if err != nil {
-			return errors.New("EncSecret key decoding failed")
+			return fmt.Errorf("encSecret decode failed: %w", err)
 		}
 		h.Secret = secret
 		h.SecretSize = uint(len(secret))
 	}
 	if len(h.Secret) == 0 {
 		h.Secret = make([]byte, h.SecretSize)
-		if _, err := h.Rand.Read(h.Secret); err != nil {
-			return errors.New("init Secret failed")
+		if _, err := io.ReadFull(h.Rand, h.Secret); err != nil {
+			return fmt.Errorf("init secret failed: %w", err)
 		}
 	} else {
 		h.SecretSize = uint(len(h.Secret))
@@ -114,17 +114,19 @@ func (h *HOtp) GenerateCodeForCounter(counter uint64, pins ...string) (passCode 
 	}
 
 	mac := hmac.New(h.Algorithm.Hash, h.Secret)
-	mac.Write(buf)
+	_, _ = mac.Write(buf)
 	sum := mac.Sum(nil)
 
-	offset := sum[len(sum)-1] & 0xf
-	if int(offset)+3 >= len(sum) {
-		return "", fmt.Errorf("invalid offset, hashSum length is too short")
+	offset := int(sum[len(sum)-1] & 0x0f)
+	if offset+3 >= len(sum) {
+		return "", fmt.Errorf("invalid offset: %d", offset)
 	}
-	value := int64(((int(sum[offset]) & 0x7f) << 24) |
-		((int(sum[offset+1] & 0xff)) << 16) |
-		((int(sum[offset+2] & 0xff)) << 8) |
-		(int(sum[offset+3]) & 0xff))
+	b0 := int(sum[offset]) & 0xff
+	b1 := int(sum[offset+1]) & 0xff
+	b2 := int(sum[offset+2]) & 0xff
+	b3 := int(sum[offset+3]) & 0xff
+
+	value := int64(((b0 & 0x7f) << 24) | (b1 << 16) | (b2 << 8) | b3)
 
 	dl := h.Digits.Length()
 	passCode = p.CalculationFun(value, dl, h.Digits)
@@ -134,20 +136,16 @@ func (h *HOtp) GenerateCodeForCounter(counter uint64, pins ...string) (passCode 
 
 func (h *HOtp) ValidateForCounter(passCode string, counter uint64, pin string) (bool, error) {
 	passCode = strings.TrimSpace(passCode)
-	if len(passCode) != h.Digits.Length() {
-		return false, errors.New("invalid password digits")
-	}
-
 	newPassCode, err := h.GenerateCodeForCounter(counter, pin)
 	if err != nil {
 		return false, err
 	}
 
-	if !(subtle.ConstantTimeCompare([]byte(newPassCode), []byte(passCode)) == 1) {
-		return false, nil
+	// 使用恒定时间比较以减少时序信息泄露
+	if subtle.ConstantTimeCompare([]byte(newPassCode), []byte(passCode)) == 1 {
+		return true, nil
 	}
-
-	return true, nil
+	return false, nil
 }
 
 // GenerateCode generate dynamic password
@@ -200,8 +198,8 @@ func (h *HOtp) GenerateKey() (string, error) {
 	val.Set("issuer", h.Issuer)
 	val.Set("algorithm", h.Algorithm.String())
 	val.Set("digits", h.Digits.String())
+	val.Set("counter", "0")
 
 	u := url.URL{Scheme: "otpauth", Host: h.Host, Path: "/" + h.Issuer + ":" + h.AccountName, RawQuery: util.EncodeQuery(val)}
-
 	return util.NewKeyFromUrl(u.String())
 }

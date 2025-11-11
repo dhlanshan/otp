@@ -6,6 +6,8 @@ import (
 	"github.com/dhlanshan/otp/hotp"
 	"github.com/dhlanshan/otp/internal/abstract"
 	"github.com/dhlanshan/otp/internal/command"
+	"github.com/dhlanshan/otp/internal/common"
+	"github.com/dhlanshan/otp/internal/util"
 	"github.com/dhlanshan/otp/totp"
 	"strings"
 )
@@ -57,4 +59,16 @@ func Validate(cmd *CreateOtpCmd, passCode string, counters ...any) bool {
 	res, _ := obj.Validate(passCode, counters...)
 
 	return res
+}
+
+func SecretToEncSecret(secret string) string {
+	return common.B32NoPadding.EncodeToString([]byte(secret))
+}
+
+func EncSecretToSecret(encSecret string) (string, error) {
+	a, err := util.DecodeBase32Secret(encSecret)
+	if err != nil {
+		return "", err
+	}
+	return string(a), nil
 }

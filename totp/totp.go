@@ -48,7 +48,7 @@ func NewTOtp(cmd *command.CreateOtpCmd) (*TOtp, error) {
 		Host:        cmd.Host,
 	}
 	if err := tObj.Init(); err != nil {
-		return nil, errors.New(fmt.Sprintf("TOTP init failed: %s", err.Error()))
+		return nil, fmt.Errorf("TOTP init failed: %w", err)
 	}
 	// Load default pattern
 	common.SetDefaultPattern()
@@ -78,15 +78,15 @@ func (t *TOtp) Init() error {
 	if t.EncSecret != "" {
 		secret, err := util.DecodeBase32Secret(t.EncSecret)
 		if err != nil {
-			return errors.New("EncSecret key decoding failed")
+			return fmt.Errorf("encSecret decode failed: %w", err)
 		}
 		t.Secret = secret
 		t.SecretSize = uint(len(secret))
 	}
 	if len(t.Secret) == 0 {
 		t.Secret = make([]byte, t.SecretSize)
-		if _, err := t.Rand.Read(t.Secret); err != nil {
-			return errors.New("init Secret failed")
+		if _, err := io.ReadFull(t.Rand, t.Secret); err != nil {
+			return fmt.Errorf("init secret failed: %w", err)
 		}
 	} else {
 		t.SecretSize = uint(len(t.Secret))
@@ -172,7 +172,7 @@ func (t *TOtp) GenerateKey() (string, error) {
 	val.Set("algorithm", t.Algorithm.String())
 	val.Set("digits", t.Digits.String())
 
-	u := url.URL{Scheme: "otpauth", Host: t.Host, Path: "/" + url.PathEscape(t.Issuer+":"+t.AccountName), RawQuery: util.EncodeQuery(val)}
+	u := url.URL{Scheme: "otpauth", Host: t.Host, Path: "/" + t.Issuer + ":" + t.AccountName, RawQuery: util.EncodeQuery(val)}
 
 	return util.NewKeyFromUrl(u.String())
 }

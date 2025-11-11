@@ -5,6 +5,7 @@ import (
 	"github.com/dhlanshan/otp/enum"
 	"github.com/dhlanshan/otp/internal/abstract"
 	"github.com/dhlanshan/otp/internal/realize"
+	"sync"
 )
 
 // 默认配置
@@ -17,13 +18,24 @@ const (
 
 var B32NoPadding = base32.StdEncoding.WithPadding(base32.NoPadding)
 
-var PatternMap = map[enum.PatternEnum]abstract.Pattern{}
+var (
+	PatternMap      = map[enum.PatternEnum]abstract.Pattern{}
+	patternInitOnce sync.Once
+)
 
 func SetDefaultPattern() {
-	// Standard
-	PatternMap[enum.Standard] = &realize.StandardPattern{}
-	// Steam
-	PatternMap[enum.Steam] = &realize.SteamPattern{}
-	// Mobile
-	PatternMap[enum.Mobile] = &realize.MobilePattern{}
+	// 仍保留此函数以兼容现有调用，但底层已由 init/Once 初始化
+	patternInitOnce.Do(func() {
+		PatternMap[enum.Standard] = &realize.StandardPattern{}
+		PatternMap[enum.Steam] = &realize.SteamPattern{}
+		PatternMap[enum.Mobile] = &realize.MobilePattern{}
+	})
+}
+
+func init() {
+	patternInitOnce.Do(func() {
+		PatternMap[enum.Standard] = &realize.StandardPattern{}
+		PatternMap[enum.Steam] = &realize.SteamPattern{}
+		PatternMap[enum.Mobile] = &realize.MobilePattern{}
+	})
 }

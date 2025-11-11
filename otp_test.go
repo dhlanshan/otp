@@ -108,3 +108,13 @@ func TestValidateByMobile(t *testing.T) {
 	res := Validate(cmd, passCode, "6688")
 	fmt.Println(res)
 }
+
+func TestSecretToEncSecret(t *testing.T) {
+	res := SecretToEncSecret("WAuQWuPjVoTRprcqp7hv")
+	fmt.Println(res)
+}
+
+func TestEncSecretToSecret(t *testing.T) {
+	res, err := EncSecretToSecret("PI4VQ4SGPFQWKYSJLBSGYZLYGZFHQYTE")
+	fmt.Println(res, err)
+}
