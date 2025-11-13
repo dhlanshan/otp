@@ -4,7 +4,7 @@ type Key interface {
 }
 
 type Otp interface {
-	GenerateCode(counters ...any) ([]string, error)
-	Validate(passCode string, counters ...any) (bool, error)
+	GenerateCode(args any) ([]string, error)
+	Validate(passCode string, args any) (bool, error)
 	GenerateKey() (string, error)
 }

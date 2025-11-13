@@ -3,20 +3,19 @@ package realize
 import (
 	"errors"
 	"github.com/dhlanshan/otp/enum"
-	"math"
 )
 
-// StandardPattern hotp|totp
-type StandardPattern struct{}
-
-func (hp *StandardPattern) CounterFun(buf []byte, str ...string) ([]byte, error) {
-	return buf, nil
-}
-
-func (hp *StandardPattern) CalculationFun(value int64, dl int, digits enum.DigitEnum) string {
-	mod := value % int64(math.Pow10(dl))
-	return digits.Format(int32(mod))
-}
+//// StandardPattern hotp|totp
+//type StandardPattern struct{}
+//
+//func (hp *StandardPattern) CounterFun(buf []byte, str ...string) ([]byte, error) {
+//	return buf, nil
+//}
+//
+//func (hp *StandardPattern) CalculationFun(value int64, dl int, digits enum.DigitEnum) string {
+//	mod := value % int64(math.Pow10(dl))
+//	return digits.Format(int32(mod))
+//}
 
 // SteamPattern steam
 type SteamPattern struct{}

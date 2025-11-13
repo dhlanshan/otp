@@ -27,7 +27,7 @@ func NewOtpInstance(cmd *CreateOtpCmd) (abstract.Otp, error) {
 }
 
 // GenerateKey generate token KEY address
-func GenerateKey(cmd *CreateOtpCmd) (string, error) {
+func GenerateKey(obj *abstract.Otp) (string, error) {
 	obj, err := NewOtpInstance(cmd)
 	if err != nil {
 		return "", err
@@ -39,24 +39,14 @@ func GenerateKey(cmd *CreateOtpCmd) (string, error) {
 }
 
 // GenerateCode generate dynamic password
-func GenerateCode(cmd *CreateOtpCmd, counters ...any) (string, error) {
-	obj, err := NewOtpInstance(cmd)
-	if err != nil {
-		return "", err
-	}
-
-	code, err := obj.GenerateCode(counters...)
-
+func GenerateCode(obj abstract.Otp, args any) (string, error) {
+	code, err := obj.GenerateCode(args)
 	return strings.Join(code, ""), err
 }
 
 // Validate verify dynamic code
-func Validate(cmd *CreateOtpCmd, passCode string, counters ...any) bool {
-	obj, err := NewOtpInstance(cmd)
-	if err != nil {
-		return false
-	}
-	res, _ := obj.Validate(passCode, counters...)
+func Validate(obj abstract.Otp, passCode string, args any) bool {
+	res, _ := obj.Validate(passCode, args)
 
 	return res
 }

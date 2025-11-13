@@ -27,15 +27,11 @@ func SetDefaultPattern() {
 	// 仍保留此函数以兼容现有调用，但底层已由 init/Once 初始化
 	patternInitOnce.Do(func() {
 		PatternMap[enum.Standard] = &realize.StandardPattern{}
-		PatternMap[enum.Steam] = &realize.SteamPattern{}
-		PatternMap[enum.Mobile] = &realize.MobilePattern{}
 	})
 }
 
 func init() {
 	patternInitOnce.Do(func() {
 		PatternMap[enum.Standard] = &realize.StandardPattern{}
-		PatternMap[enum.Steam] = &realize.SteamPattern{}
-		PatternMap[enum.Mobile] = &realize.MobilePattern{}
 	})
 }
