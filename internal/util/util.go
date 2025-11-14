@@ -2,8 +2,9 @@ package util
 
 import (
 	"encoding/base32"
-	"github.com/dhlanshan/otp/enum"
+	"fmt"
 	"net/url"
+	"reflect"
 	"sort"
 	"strings"
 )
@@ -62,32 +63,54 @@ func NewKeyFromUrl(orig string) (string, error) {
 	return u.String(), nil
 }
 
-func ParameterParsing(pattern enum.PatternEnum, counters ...any) (counter uint64, pin string) {
-	switch pattern {
-	case enum.Mobile:
-		cc := counters[0].([]any)
-		for i, c := range cc {
-			if i >= 2 {
-				continue
-			}
-			switch v := c.(type) {
-			case string:
-				if pin == "" {
-					pin = v
-				}
-			case uint64:
-				if counter == 0 {
-					counter = v
-				}
-			}
-		}
-	default:
-		if nested, ok := counters[0].([]any); ok && len(nested) > 0 {
-			if v, ok := nested[0].(uint64); ok && v != 0 {
-				counter = v
-			}
-		}
+// CheckType 校验传入数据类型是否匹配
+func CheckType(expect reflect.Type, v any) error {
+	if v == nil {
+		return fmt.Errorf("invalid type: nil")
 	}
 
-	return
+	actual := reflect.TypeOf(v)
+
+	// 去掉多级指针
+	for actual.Kind() == reflect.Pointer {
+		actual = actual.Elem()
+	}
+
+	for expect.Kind() == reflect.Pointer {
+		expect = expect.Elem()
+	}
+
+	// 如果预期是接口，则判断实现
+	if expect.Kind() == reflect.Interface {
+		if !actual.Implements(expect) {
+			return fmt.Errorf("type %v does not implement %v", actual, expect)
+		}
+		return nil
+	}
+
+	// 普通类型直接比较
+	if actual != expect {
+		return fmt.Errorf("invalid type %v, expect %v", actual, expect)
+	}
+
+	return nil
+}
+
+func GetFieldValue(obj any, fieldName string) (any, error) {
+	v := reflect.ValueOf(obj)
+	// 如果是指针，取 Elem()
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	// 必须是结构体
+	if v.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("传入的不是结构体类型")
+	}
+	// 查找字段
+	f := v.FieldByName(fieldName)
+	if !f.IsValid() {
+		return nil, fmt.Errorf("字段不存在: %s", fieldName)
+	}
+
+	return f.Interface(), nil
 }

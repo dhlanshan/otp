@@ -9,6 +9,13 @@ import (
 	"hash"
 )
 
+type OtpTypeEnum string
+
+const (
+	HOTP OtpTypeEnum = "hotp"
+	TOTP OtpTypeEnum = "totp"
+)
+
 type PatternEnum string
 
 const (

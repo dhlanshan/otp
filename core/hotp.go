@@ -4,70 +4,51 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/subtle"
-	"errors"
 	"fmt"
+	"github.com/dhlanshan/otp/dto"
 	"github.com/dhlanshan/otp/enum"
-	"github.com/dhlanshan/otp/internal/command"
-	"github.com/dhlanshan/otp/internal/common"
+	"github.com/dhlanshan/otp/infrastructure"
 	"github.com/dhlanshan/otp/internal/util"
 	"io"
-	"net/url"
 	"strings"
 )
 
 type HOtp struct {
-	Issuer      string             // The name of the issuer/company
-	AccountName string             // The user's account name (e.g., email address)
-	SecretSize  uint               // The size of the secret key to generate. Defaults to 20 bytes. Used when the key needs to be randomly generated
-	Secret      []byte             // The raw secret key. Defaults to a randomly generated key of size SecretSize
-	EncSecret   string             // The encoded secret key
-	Digits      enum.DigitEnum     // The number of digits in the OTP
-	Algorithm   enum.AlgorithmEnum // The algorithm used for HMAC. Defaults to SHA1
-	Pattern     enum.PatternEnum   // The OTP generation pattern
-	Rand        io.Reader          // The reader used for generating TOTP keys
-	Host        string             // The host of the key
+	Issuer string // The name of the issuer/company
+
+	SecretSize uint   // The size of the secret key to generate. Defaults to 20 bytes. Used when the key needs to be randomly generated
+	Secret     []byte // The raw secret key. Defaults to a randomly generated key of size SecretSize
+	EncSecret  string // The encoded secret key
+
+	Digits    enum.DigitEnum     // The number of digits in the OTP
+	Algorithm enum.AlgorithmEnum // The algorithm used for HMAC. Defaults to SHA1
+	Pattern   enum.PatternEnum   // The OTP generation pattern
+	rand      io.Reader          // The reader used for generating TOTP keys
 }
 
 // NewHOtp initializes and returns a new HOtp instance based on the provided CreateOtpCmd configuration.
-func NewHOtp(cmd *command.CreateOtpCmd) (*HOtp, error) {
+func NewHOtp(cmd dto.CreateOtpCmd) (*HOtp, error) {
 	hObj := &HOtp{
-		Issuer:      cmd.Issuer,
-		AccountName: cmd.AccountName,
-		SecretSize:  cmd.SecretSize,
-		Secret:      []byte(cmd.Secret),
-		EncSecret:   cmd.EncSecret,
-		Digits:      cmd.Digits,
-		Algorithm:   cmd.Algorithm,
-		Pattern:     cmd.Pattern,
-		Rand:        rand.Reader,
-		Host:        cmd.Host,
+		Issuer:     cmd.Issuer,
+		SecretSize: cmd.SecretSize,
+		Secret:     []byte(cmd.Secret),
+		EncSecret:  cmd.EncSecret,
+		Digits:     cmd.Digits,
+		Algorithm:  cmd.Algorithm,
+		Pattern:    cmd.Pattern,
+		rand:       rand.Reader,
 	}
 	if err := hObj.Init(); err != nil {
 		return nil, fmt.Errorf("HOTP init failed: %w", err)
 	}
-	// Load default pattern
-	common.SetDefaultPattern()
 
 	return hObj, nil
 }
 
 func (h *HOtp) Init() error {
-	if h.Issuer == "" {
-		h.Issuer = common.DefaultIssuer
-	}
-	if h.AccountName == "" {
-		h.AccountName = common.DefaultAccountName
-	}
-	if h.SecretSize == 0 {
-		h.SecretSize = common.DefaultSecretSize
-	}
-	if h.Digits == 0 {
-		h.Digits = enum.DigitSix
-	}
-	if h.Rand == nil {
-		h.Rand = rand.Reader
-	}
-	if h.EncSecret != "" {
+	h.SecretSize = util.Ternary(h.SecretSize == 0, DefaultSecretSize, h.SecretSize)
+	h.Digits = util.Ternary(h.Digits == 0, enum.DigitSix, h.Digits)
+	if util.RemoveAllSpace(h.EncSecret) != "" {
 		secret, err := util.DecodeBase32Secret(h.EncSecret)
 		if err != nil {
 			return fmt.Errorf("encSecret decode failed: %w", err)
@@ -75,32 +56,52 @@ func (h *HOtp) Init() error {
 		h.Secret = secret
 		h.SecretSize = uint(len(secret))
 	}
-	if len(h.Secret) == 0 {
+	if util.RemoveAllSpace(string(h.Secret)) == "" {
 		h.Secret = make([]byte, h.SecretSize)
-		if _, err := io.ReadFull(h.Rand, h.Secret); err != nil {
-			return fmt.Errorf("init secret failed: %w", err)
-		}
+		_, _ = io.ReadFull(h.rand, h.Secret)
 	} else {
 		h.SecretSize = uint(len(h.Secret))
 	}
-	if h.EncSecret == "" {
-		h.EncSecret = common.B32NoPadding.EncodeToString(h.Secret)
+	if util.RemoveAllSpace(h.EncSecret) == "" {
+		h.EncSecret = B32NoPadding.EncodeToString(h.Secret)
 	}
-
+	if _, ok := infrastructure.PatternMap[h.Pattern]; !ok {
+		return fmt.Errorf("invalid pattern: %s", h.Pattern)
+	}
 	return nil
 }
 
-func (h *HOtp) GenerateCodeForCounter(internalArg *InternalArg, args any) (passCode string, err error) {
-	p, ok := common.PatternMap[h.Pattern]
-	if !ok {
-		return "", errors.New("invalid pattern")
-	}
+func (h *HOtp) checkArgs(args any) error {
+	return util.CheckType(infrastructure.GetPatternArg(h.Pattern), args)
+}
 
+func (h *HOtp) genInternalArg() *dto.InternalArg {
+	return &dto.InternalArg{
+		Issuer:     h.Issuer,
+		SecretSize: h.SecretSize,
+		Secret:     h.Secret,
+		EncSecret:  h.EncSecret,
+		Digits:     h.Digits,
+		Algorithm:  h.Algorithm,
+		Pattern:    h.Pattern,
+		OtpType:    enum.HOTP,
+	}
+}
+
+func (h *HOtp) generateCodeForCounter(internalArg *dto.InternalArg, args any) (passCode string, err error) {
+	p, _ := infrastructure.PatternMap[h.Pattern]
 	// 计数
 	counterByte, err := p.GenCounter(internalArg, args)
 
 	// 计算
-	mac := hmac.New(h.Algorithm.Hash, h.Secret)
+	secret := h.Secret
+	// 自定义秘钥
+	if val, err := util.GetFieldValue(args, "Secret"); err == nil {
+		if v, ok := val.(string); ok && util.RemoveAllSpace(v) != "" {
+			secret = []byte(v)
+		}
+	}
+	mac := hmac.New(h.Algorithm.Hash, secret)
 	_, _ = mac.Write(counterByte)
 	sum := mac.Sum(nil)
 	passCode, err = p.Calculation(internalArg, sum, args)
@@ -108,24 +109,26 @@ func (h *HOtp) GenerateCodeForCounter(internalArg *InternalArg, args any) (passC
 	return
 }
 
-func (h *HOtp) ValidateForCounter(internalArg *InternalArg, passCode string, args any) (bool, error) {
+func (h *HOtp) validateForCounter(internalArg *dto.InternalArg, passCode string, args any) bool {
 	passCode = strings.TrimSpace(passCode)
-	newPassCode, err := h.GenerateCodeForCounter(internalArg, args)
-	if err != nil {
-		return false, err
+	if newPassCode, err := h.generateCodeForCounter(internalArg, args); err == nil {
+		if subtle.ConstantTimeCompare([]byte(newPassCode), []byte(passCode)) == 1 {
+			return true
+		}
 	}
 
-	// 使用恒定时间比较以减少时序信息泄露
-	if subtle.ConstantTimeCompare([]byte(newPassCode), []byte(passCode)) == 1 {
-		return true, nil
-	}
-	return false, nil
+	return false
 }
 
 // GenerateCode generate dynamic password
 func (h *HOtp) GenerateCode(args any) ([]string, error) {
-	internalArg := &InternalArg{}
-	passCode, err := h.GenerateCodeForCounter(internalArg, args)
+	if err := h.checkArgs(args); err != nil {
+		return nil, err
+	}
+
+	internalArg := h.genInternalArg()
+
+	passCode, err := h.generateCodeForCounter(internalArg, args)
 	if err != nil {
 		return nil, err
 	}
@@ -134,24 +137,24 @@ func (h *HOtp) GenerateCode(args any) ([]string, error) {
 }
 
 // Validate verify dynamic password
-func (h *HOtp) Validate(passCode string, args any) (bool, error) {
-	internalArg := &InternalArg{}
-	return h.ValidateForCounter(internalArg, passCode, args)
+func (h *HOtp) Validate(passCode string, args any) bool {
+	if err := h.checkArgs(args); err != nil {
+		return false
+	}
+
+	internalArg := h.genInternalArg()
+
+	return h.validateForCounter(internalArg, passCode, args)
 }
 
 // GenerateKey new key
-func (h *HOtp) GenerateKey() (string, error) {
-	if h.Issuer == "" || h.AccountName == "" {
-		return "", errors.New("lacking necessary account information")
+func (h *HOtp) GenerateKey(args any) (string, error) {
+	if err := h.checkArgs(args); err != nil {
+		return "", err
 	}
 
-	val := url.Values{}
-	val.Set("secret", h.EncSecret)
-	val.Set("issuer", h.Issuer)
-	val.Set("algorithm", h.Algorithm.String())
-	val.Set("digits", h.Digits.String())
-	val.Set("counter", "0")
+	internalArg := h.genInternalArg()
+	p, _ := infrastructure.PatternMap[h.Pattern]
 
-	u := url.URL{Scheme: "otpauth", Host: h.Host, Path: "/" + h.Issuer + ":" + h.AccountName, RawQuery: util.EncodeQuery(val)}
-	return util.NewKeyFromUrl(u.String())
+	return p.GenUrl(internalArg, args)
 }
